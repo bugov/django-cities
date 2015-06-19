@@ -206,6 +206,11 @@ def create_settings():
         res.postal_codes = set([e.upper() for e in django_settings.CITIES_POSTAL_CODES])
     else:
         res.postal_codes = set()
+
+    if hasattr(django_settings, "CITIES_FORCE_CREATE_REGIONS"):
+        res.force_create_regions = django_settings.CITIES_FORCE_CREATE_REGIONS
+    else:
+        res.force_create_regions = False
     
     return res
 

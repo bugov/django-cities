@@ -30,6 +30,10 @@ from ...conf import *
 from ...models import *
 from ...util import geo_distance
 
+if settings.force_create_regions:
+    GUARANTEED_NOT_GEONAMES_ID = 1000000000
+
+
 class Command(BaseCommand):
     app_dir = os.path.normpath(os.path.dirname(os.path.realpath(__file__)) + '/../..')
     data_dir = os.path.join(app_dir, 'data')
@@ -225,6 +229,30 @@ class Command(BaseCommand):
             if not self.call_hook('region_post', region, item): continue
             region.save()
             self.logger.debug("Added region: {0}, {1}".format(item['code'], region))
+
+    def create_region_from_country(self, country):
+        self.logger.info("Create region from country, because can't import region")
+        last_region = Region.objects.order_by('-id').first()
+
+        if last_region and last_region.id > GUARANTEED_NOT_GEONAMES_ID:
+            largest_id = last_region.id + 1
+        else:
+            largest_id = GUARANTEED_NOT_GEONAMES_ID
+
+        region = Region()
+
+        region.id = largest_id
+        region.name = country.name
+        region.name_std = country.name
+        region.slug = country.slug
+        region.code = country.code
+
+        region.country = self.country_index[country.code]
+
+        region.save()
+        self.logger.debug("Added region: {0}, {1}".format(region.code, region))
+
+        return region
         
     def build_region_index(self):
         if hasattr(self, 'region_index'): return
@@ -312,8 +340,12 @@ class Command(BaseCommand):
                 region = self.region_index[country_code + "." + region_code]
                 city.region = region
             except:
-                self.logger.warning("{0}: {1}: Cannot find region: {2} -- skipping".format(country_code, city.name, region_code))
-                continue
+                if settings.force_create_regions:
+                    self.logger.warning("{0}: {1}: Cannot find region: {2} -- create".format(country_code, city.name, region_code))
+                    city.region = self.create_region_from_country(city.country)
+                else:
+                    self.logger.warning("{0}: {1}: Cannot find region: {2} -- skipping".format("CITY", city.name, region_code))
+                    continue
             
             subregion_code = item['admin2Code']
             try: 
